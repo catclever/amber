@@ -8,7 +8,7 @@ engine = Amber::Engine.build do
   environment prompt: "Can you analyze this string 'Hello World' and reverse it?"
 
   # 2. Define an Agent with an LLM profile
-  agent :analyzer, profile_name: 'openai', system_prompt: "You are a String analysis AI."
+  agent :analyzer, profile_name: 'glm2', system_prompt: "You are a String analysis AI."
 
   job :request_analysis do
     action "Pass the user's string to the Agent to analyze and reverse it."

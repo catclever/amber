@@ -21,9 +21,9 @@ module Amber
       @logger.level = Logger::INFO
       
       # We instantiate a lightweight zero-temperature LLM just for Engine condition evaluations
-      # It defaults to the 'openai' profile, expecting an llm.yml at the root.
+      # Defaulting to glm based on current user setup
       @engine_evaluator = RubyLlm::LLMService.new(
-        profile_name: 'openai', 
+        profile_name: 'glm2', 
         temperature: 0.1, 
         logger: @logger
       )

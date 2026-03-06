@@ -33,7 +33,7 @@ engine = Amber::Engine.build do
 
   # Define the Agent and load our custom tool
   agent :weather_bot, 
-        profile_name: 'openai', 
+        profile_name: 'glm2', 
         system_prompt: "You are a helpful weather assistant.",
         tools: [WeatherLookupTool]
 
