@@ -1,6 +1,7 @@
 require_relative 'context'
 require_relative 'orchestration/job'
 require_relative 'agent/base'
+require_relative 'tools/spawn_job_tool'
 require 'logger'
 
 module Amber
@@ -39,6 +40,19 @@ module Amber
       @agents[name.to_sym] = Agent::Base.new(name: name, logger: @logger, **kwargs)
     end
 
+    # DSL (Macro): Automatically orchestrate and plan sub-jobs from a single Goal string!
+    def orchestrate(goal)
+      agent :__amber_planner, 
+            profile_name: @engine_evaluator.instance_variable_get(:@format_name) == 'anthropic' ? 'glm2' : 'openai', 
+            system_prompt: "You are an intelligent auto-planner. Break down the GOAL into execution steps using your `spawn_job` tool. Once you've spawned all jobs, submit 'Planning Complete' to the context key :planning_status.",
+            tools: [Amber::Tool::SpawnJob]
+            
+      job :__amber_root_plan do
+        action "Goal: #{goal}"
+        executed_by_agent :__amber_planner
+      end
+    end
+
     # DSL: Define a job
     def job(name, &block)
       j = Orchestration::Job.new(name)
@@ -68,6 +82,8 @@ module Amber
       # In future iterations, this will be swapped to truly concurrent threaded execution.
       
       loop do
+        intercept_dynamic_jobs!
+
         pending_jobs = @jobs.values.select { |j| j.status == :pending }
         running_jobs = @jobs.values.select { |j| j.status == :running }
 
@@ -95,6 +111,33 @@ module Amber
     end
 
     private
+
+    def intercept_dynamic_jobs!
+      queue = @context.get(:__amber_dynamic_jobs)
+      return if queue.nil? || queue.empty?
+
+      queue.each do |job_spec|
+        job_sym = job_spec[:name].to_sym
+        next if @jobs.key?(job_sym) # Skip if already spawned
+
+        @logger.info "[Amber] Intercepted new Dynamic Job Spawn: :#{job_sym}"
+        j = Orchestration::Job.new(job_sym)
+        j.instance_variable_set(:@description, job_spec[:objective])
+        
+        j.depends_on_ai(job_spec[:condition]) if job_spec[:condition] && !job_spec[:condition].empty?
+        
+        # If no explicit agent is defined, we'll auto-execute with the first generic execution agent available,
+        # or error out if none. We can default to any agent that has CodeExecutor tools!
+        valid_agents = @agents.keys.reject { |k| k == :__amber_planner }
+        if valid_agents.any?
+          j.instance_variable_set(:@agent_name, valid_agents.first)
+        end
+        
+        @jobs[job_sym] = j
+      end
+      
+      @context.set(:__amber_dynamic_jobs, [])
+    end
 
     def dependencies_met?(job)
       # 1. Check formal logic dependencies evaluating against context
