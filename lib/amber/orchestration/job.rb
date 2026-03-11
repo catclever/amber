@@ -21,9 +21,16 @@ module Amber
 
       # DSL: Formal dependency (evaluates a block against the context)
       # e.g. depends_on { |ctx| ctx.get(:user_id) != nil }
-      def depends_on(&block)
-        raise ArgumentError, "depends_on requires a block to evaluate context" unless block_given?
-        @dependencies << block
+      # or depends_on :some_other_job
+      def depends_on(*job_names, &block)
+        if block_given?
+          @dependencies << block
+        end
+        job_names.each do |job_name|
+          # We store a lambda that checks the Engine context for completion
+          # but Engine needs to evaluate this against its @jobs list.
+          @dependencies << ->(ctx) { ctx.get(:__amber_job_status, job_name) == :completed }
+        end
       end
 
       # DSL: Semantic/AI dependency rules to evaluate against Context

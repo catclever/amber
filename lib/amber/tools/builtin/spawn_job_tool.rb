@@ -10,7 +10,8 @@ module Amber
         properties: {
           job_name: { type: 'string', description: 'A unique short snake_case name for the new job, e.g., read_logs.' },
           objective: { type: 'string', description: 'What this job should accomplish (its prompt/action instructions).' },
-          depends_on_ai: { type: 'string', description: 'Optional. A natural language condition evaluating the Shared Context that MUST be TRUE before this job triggers.' }
+          depends_on_ai: { type: 'string', description: 'Optional. A natural language condition evaluating the Shared Context that MUST be TRUE before this job triggers.' },
+          max_turns: { type: 'integer', description: 'Optional. Maximum number of LLM reasoning turns this job is allowed to run. Default is 30, increase it for complex tasks.' }
         },
         required: ['job_name', 'objective']
       )
@@ -21,7 +22,8 @@ module Amber
         new_job_definition = {
           name: args['job_name'],
           objective: args['objective'],
-          condition: args['depends_on_ai']
+          condition: args['depends_on_ai'],
+          max_turns: args['max_turns']
         }
         
         queue << new_job_definition

@@ -71,8 +71,8 @@ module Amber
     def run!
       @logger.info "[Amber] Starting Engine with #{@jobs.size} defined jobs."
       
-      # For now, we use a simple synchronous polling loop to simulate parallelism and waiting.
-      # In future iterations, this will be swapped to truly concurrent threaded execution.
+      # Track active threads for concurrent job execution
+      @active_threads = []
       
       loop do
         intercept_dynamic_jobs!
@@ -80,25 +80,49 @@ module Amber
         pending_jobs = @jobs.values.select { |j| j.status == :pending }
         running_jobs = @jobs.values.select { |j| j.status == :running }
 
-        break if pending_jobs.empty? && running_jobs.empty?
+        # Clean up finished threads
+        @active_threads.reject! { |t| !t.alive? }
+
+        break if pending_jobs.empty? && running_jobs.empty? && @active_threads.empty?
 
         ready_jobs = pending_jobs.select do |j|
           dependencies_met?(j)
         end
 
-        if ready_jobs.empty? && running_jobs.empty?
+        if ready_jobs.empty? && running_jobs.empty? && @active_threads.empty?
           @logger.error "[Amber] DEADLOCK: No jobs are running and no pending jobs have their dependencies met. Terminating."
           break
         end
 
         ready_jobs.each do |j|
-          @logger.info "[Amber] Dispatching Job: :#{j.name}"
-          j.execute!(@context)
-          @logger.info "[Amber] Finished Job: :#{j.name} with status: #{j.status}"
+          @logger.info "[Amber] Dispatching Job: :#{j.name} (Concurrent Thread)"
+          j.instance_variable_set(:@status, :running) # Mark early so it's not picked up again
+          
+          # Spawn real concurrent thread
+          t = Thread.new do
+            begin
+              j.execute!(@context)
+              @logger.info "[Amber] Finished Job: :#{j.name} with status: #{j.status}"
+            rescue StandardError => e
+              @logger.error "[Amber] Job :#{j.name} crashed: #{e.message}\n#{e.backtrace.join("\n")}"
+              j.instance_variable_set(:@status, :failed)
+            ensure
+              # Write status to context so subsequent jobs can depend on it via symbol
+              statuses = @context.get(:__amber_job_status) || {}
+              statuses[j.name] = j.status
+              @context.set(:__amber_job_status, statuses)
+            end
+          end
+          
+          @active_threads << t
         end
 
+        # Throttling to prevent busy-wait
         sleep(0.1) unless ready_jobs.any?
       end
+      
+      # Final wait to ensure all threads finish gracefully
+      @active_threads.each(&:join)
 
       @logger.info "[Amber] Engine Run Complete. Final Context: #{@context.snapshot.inspect}"
     end
@@ -123,8 +147,10 @@ module Amber
         valid_agents = @agents.reject { |k, _v| k == :__amber_planner }.values
         if valid_agents.any?
           agent_instance = valid_agents.first
+          run_max_turns = job_spec[:max_turns] ? job_spec[:max_turns].to_i : nil
+          
           j.executed_by do |ctx|
-            agent_instance.execute(ctx, j.description)
+            agent_instance.execute(ctx, j.description, run_max_turns: run_max_turns)
           end
         end
         

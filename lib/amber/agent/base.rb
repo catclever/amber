@@ -2,6 +2,10 @@ require 'ruby_llm'
 require 'logger'
 require_relative 'message_queue'
 require_relative 'working_note'
+require_relative 'token_monitor'
+require_relative '../tool_registry'
+require_relative 'message_queue'
+require_relative 'working_note'
 require_relative '../tool_registry'
 
 module Amber
@@ -9,9 +13,10 @@ module Amber
     class Base
       attr_reader :name, :system_prompt, :llm
 
-      def initialize(name:, profile_name: 'openai', system_prompt: nil, tools: [], logger: nil)
+      def initialize(name:, profile_name: 'openai', system_prompt: nil, tools: [], logger: nil, max_turns: 30)
         @name = name.to_sym
         @system_prompt = system_prompt || "You are a helpful AI assistant. You must use tools to submit your result."
+        @max_turns = max_turns
         
         @logger = logger || Logger.new($stdout, level: Logger::INFO)
         
@@ -36,23 +41,24 @@ module Amber
       end
 
       # The execution loop given a job context
-      def execute(context, job_description)
+      def execute(context, job_description, run_max_turns: nil)
         @logger.info "[Amber::Agent::#{@name}] Starting Agent Loop for job: #{job_description}"
         
         # 1. Prepare isolated Agent components
-        queue = MessageQueue.new(@logger)
+        # Initialize Message Queue with the agent's LLM for sliding window summarization
+        queue = MessageQueue.new(@logger, llm: @llm)
         working_note = WorkingNote.new
         
         queue.seed_prompt(build_initial_prompt(context, job_description))
 
         # 2. ReAct / Tool Dispatch Loop
-        max_turns = 30
         turns = 0
+        actual_max_turns = run_max_turns || @max_turns
 
         loop do
           turns += 1
-          if turns > max_turns
-            @logger.warn "[Amber::Agent::#{@name}] Exceeded max turns (#{max_turns}). Forcing exit."
+          if turns > actual_max_turns
+            @logger.warn "[Amber::Agent::#{@name}] Exceeded max turns (#{actual_max_turns}). Forcing exit."
             return "Error: Agent exceeded maximum allowed reasoning turns."
           end
 

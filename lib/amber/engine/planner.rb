@@ -33,6 +33,7 @@ module Amber
           evaluator_profile = @engine_evaluator.instance_variable_get(:@profile_name) || 'glm2'
           agent :__amber_planner, 
                 profile_name: evaluator_profile, 
+                max_turns: 50,
                 system_prompt: "You are the primary Amber Auto-Planner. Break down complex goals into execution steps using your `spawn_job` tool. Assign them to generic worker agents. Do not stop until all components of the goal are planned.",
                 tools: [:spawn_job]
         end

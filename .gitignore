@@ -12,3 +12,6 @@
 
 # llm
 llm.y
+
+# Agent
+.agent/
