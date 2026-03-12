@@ -1,18 +1,18 @@
 require 'json'
 
 module Amber
-  class Engine
+  class Body
     module Evaluator
-      def dependencies_met?(job)
+      def dependencies_met?(job, soul)
         # 1. Check formal logic dependencies evaluating against context
         formal_met = job.dependencies.all? do |condition_block|
-          condition_block.call(@context)
+          condition_block.call(soul.context)
         end
         return false unless formal_met
 
         # 2. Check Semantic (AI) dependencies against context
         ai_met = job.ai_dependencies.all? do |ai_requirement|
-          evaluate_condition_via_llm?(ai_requirement, job)
+          evaluate_condition_via_llm?(ai_requirement, job, soul)
         end
         return false unless ai_met
 
@@ -21,7 +21,7 @@ module Amber
 
       private
 
-      def evaluate_condition_via_llm?(requirement, for_job)
+      def evaluate_condition_via_llm?(requirement, for_job, soul)
         @logger.debug "[Amber] AI evaluating dependency: '#{requirement}' for Job :#{for_job.name}"
         
         prompt = <<~PROMPT
@@ -29,7 +29,7 @@ module Amber
           Analyze the following Shared Context data against the required Condition.
           
           Shared Context:
-          #{@context.snapshot.to_json}
+          #{soul.context.snapshot.to_json}
           
           Condition:
           "#{requirement}"
@@ -57,7 +57,7 @@ module Amber
         when 'missing_task'
           @logger.info "[Amber] AI Evaluated '#{requirement}': missing_task. Spawning auto-planner for: #{result['suggested_goal']}"
           # Automatically trigger the Planner to resolve this unhandled complex missing task!
-          spawn_dynamic_job_for_missing_requirement(result['suggested_goal'])
+          spawn_dynamic_job_for_missing_requirement(soul, result['suggested_goal'])
           return false # Not met yet, let the planner work on it
         else
           @logger.info "[Amber] AI Evaluated '#{requirement}': false"

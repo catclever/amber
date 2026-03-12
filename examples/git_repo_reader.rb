@@ -48,7 +48,7 @@ engine = Amber::Engine.build do
   # We don't even need to assign them to Jobs! The Engine will grab any Agent
   # that can handle the Dynamic Job if no specific agent is requested.
   agent :scout, 
-        profile_name: 'glm2',
+        profile_name: 'glm',
         system_prompt: "You are a Git Repo Scout. You execute code to look at the repo's files.",
         tools: [:run_shell_in_git_repo]
 

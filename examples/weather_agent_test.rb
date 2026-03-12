@@ -12,7 +12,7 @@ class WeatherLookupTool < Amber::Tool::Base
     required: ['city']
   )
 
-  def execute(args)
+  def execute(args, context = nil)
     city = args['city']
     puts "\n[Tool Execution] -> Fetching weather data for #{city}..."
     sleep(1) # Simulate network call
@@ -23,34 +23,42 @@ class WeatherLookupTool < Amber::Tool::Base
 end
 
 
-# --- 2. Build the Amber Engine DSL ---
+# --- 2. Build the Amber Body & Soul DSL ---
 puts "Building Amber Agent DSL..."
 
-engine = Amber::Engine.build do
-  # Shared Context
-  environment user_query: "What's the weather like in Tokyo today?",
-              weather_result: nil
+body = Amber::Body.define :weather_agency do
+  config do
+    profile :glm, provider: :glm, model: 'glm-5', tags: [:default, :planner]
+  end
 
-  # Define the Agent and load our custom tool
-  agent :weather_bot, 
-        profile_name: 'glm2', 
-        system_prompt: "You are a helpful weather assistant.",
-        tools: [WeatherLookupTool]
+  roster do
+    # Define the Agent and load our custom tool
+    agent :weather_bot, 
+          profile: :glm, 
+          system_prompt: "You are a helpful weather assistant.",
+          tools: [WeatherLookupTool]
+  end
+end
+
+soul = Amber::Soul.define :check_weather_flow do
+  # Shared Context
+  inject_context user_query: "What's the weather like in Tokyo today?",
+                 weather_result: nil
 
   # Job 1: Check if the user is actually asking about weather
   job :analyze_query do
     depends_on_ai "Does the `user_query` in context ask about the weather?"
     
-    action "Find the weather for the user and save it to `weather_result`."
-    executed_by_agent :weather_bot
+    description "Find the weather for the user and save it to `weather_result`."
+    assignee :weather_bot
   end
   
   # Job 2: Wait for Job 1 to finish, then print the result
   job :print_result do
     depends_on { |ctx| ctx.get(:weather_result) != nil }
     
-    action "Print the final weather context"
-    executed_by do |ctx|
+    description "Print the final weather context"
+    execute do |ctx|
       puts "\n=== FINAL RESULT ==="
       puts "User Query: #{ctx.get(:user_query)}"
       puts "AI Answer: #{ctx.get(:weather_result)}"
@@ -60,6 +68,6 @@ engine = Amber::Engine.build do
 end
 
 # --- 3. Execute ---
-puts "\nExecuting Amber Engine Integration Test..."
-engine.run!
+puts "\nExecuting Amber Body Integration Test..."
+body.animate(soul)
 puts "\nDone!"

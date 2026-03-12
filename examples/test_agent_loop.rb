@@ -1,26 +1,31 @@
 require_relative '../lib/amber'
 
-# Ensure you have your llm.yml or ENV variables setup for 'openai' profile
-puts "Building Amber Agent DSL..."
+puts "Building Amber Agent Body & Soul DSL..."
 
-engine = Amber::Engine.build do
-  # 1. Global Context
-  environment prompt: "Can you analyze this string 'Hello World' and reverse it?"
+body = Amber::Body.define :analyzer_squad do
+  config do
+    profile :glm, provider: :glm, model: 'glm-5'
+  end
 
-  # 2. Define an Agent with an LLM profile
-  agent :analyzer, profile_name: 'glm2', system_prompt: "You are a String analysis AI."
+  roster do
+    agent :analyzer, profile: :glm, system_prompt: "You are a String analysis AI."
+  end
+end
+
+soul = Amber::Soul.define :string_analysis do
+  inject_context prompt: "Can you analyze this string 'Hello World' and reverse it?"
 
   job :request_analysis do
-    action "Pass the user's string to the Agent to analyze and reverse it."
+    description "Pass the user's string to the Agent to analyze and reverse it."
     
     # Needs to ensure the prompt is loaded into memory
     depends_on { |ctx| ctx.get(:prompt) != nil }
     
     # Assign predefined agent execution
-    executed_by_agent :analyzer
+    assignee :analyzer
   end
 end
 
-puts "\nExecuting Amber Engine..."
-engine.run!
+puts "\nExecuting Amber Body..."
+body.animate(soul)
 puts "\nDone!"

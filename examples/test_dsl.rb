@@ -1,13 +1,21 @@
 require_relative '../lib/amber'
 
-puts "Building Amber Engine DSL..."
+puts "Building Amber Body & Soul DSL..."
 
-engine = Amber::Engine.build do
-  environment user_id: 123, status: 'started'
+# 1. Define the reusable Body
+body = Amber::Body.define :basic_runner do
+  config do
+    profile :default, provider: :openai, model: 'gpt-4o-mini'
+  end
+end
+
+# 2. Define the specific Soul (Workflow + Context)
+soul = Amber::Soul.define :parsing_flow do
+  inject_context user_id: 123, status: 'started'
 
   job :parse_input do
-    action "Read input from user"
-    executed_by do |ctx|
+    description "Read input from user"
+    execute do |ctx|
       puts "--> [Job: parse_input] Running! Reading user ID: #{ctx.get(:user_id)}"
       ctx.set(:input_received, true)
       "Input Parsed Return Value"
@@ -17,8 +25,8 @@ engine = Amber::Engine.build do
   job :generate_response do
     depends_on :parse_input
     
-    action "Generate AI response based on input"
-    executed_by do |ctx|
+    description "Generate AI response based on input"
+    execute do |ctx|
       puts "--> [Job: generate_response] Running! Input Received flag is: #{ctx.get(:input_received)}"
       ctx.set(:response_ready, true)
     end
@@ -26,11 +34,11 @@ engine = Amber::Engine.build do
 
   job :dynamic_delivery do
     depends_on :generate_response
-    action "Deliver the response back to the user channel"
-    # No `executed_by` block provided intentionally to test the 'Undefined Agent' fallback
+    description "Deliver the response back to the user channel"
+    # No `execute` or `assignee` provided intentionally to test fallback
   end
 end
 
-puts "\nExecuting Amber Engine..."
-engine.run!
+puts "\nExecuting Amber Body.animate..."
+body.animate(soul)
 puts "\nDone!"

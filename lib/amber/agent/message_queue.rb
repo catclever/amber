@@ -93,6 +93,11 @@ module Amber
         true
       end
 
+      # Formats history array into RubyLLM expected format (array of hashes)
+      def to_llm_payload
+        @history
+      end
+
       private
 
       def group_into_rounds(messages)
@@ -140,10 +145,6 @@ module Amber
         response.content.to_s
       end
 
-      # Formats history array into RubyLLM expected format (array of hashes)
-      def to_llm_payload
-        @history
-      end
     end
   end
 end

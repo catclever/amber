@@ -1,1 +1,0 @@
-Repository exploration complete. Context prepared in .exploration_context.json. Ready for engine to execute spawned jobs: read_readme, list_root_files, create_summary. Final summary will be in :final_summary context key.

@@ -1,5 +1,6 @@
 require_relative "amber/version"
-require_relative "amber/engine"
+require_relative "amber/body"
+require_relative "amber/soul"
 require_relative "amber/sandbox/executor"
 require_relative "amber/tool_registry"
 
